@@ -56,6 +56,19 @@ export async function recordPayment(
     );
   }
 
+  // A payment is allowed to exceed a single installment's amount — it's
+  // meant to spill over and pay off the next installments too. It must
+  // NOT exceed the contract's total remaining balance, though; that's
+  // always a data-entry mistake (a typo'd extra digit, wrong contract
+  // selected, etc.) rather than a legitimate early payoff, since a
+  // correct payoff amount is by definition <= what's still owed.
+  const remainingBalance = Number(contract.remaining_balance);
+  if (values.amountPaid > remainingBalance) {
+    throw new PaymentServiceError(
+      `This payment (Rs. ${values.amountPaid.toLocaleString()}) is more than the Rs. ${remainingBalance.toLocaleString()} still owed on this contract. A payment can be larger than a single installment — it'll spread across the remaining ones — but it can't be larger than the total remaining balance. Please double-check the amount before submitting.`
+    );
+  }
+
   const { data: outstandingInstallments, error: instError } = await supabase
     .from("installments")
     .select("*")
@@ -392,7 +405,7 @@ export async function editPaymentAmount(
   const { data: payment, error: fetchError } = await supabase
     .from("payments")
     .select(
-      "id, amount_paid, contract_id, payment_date, contract:contracts(profit_distributed)"
+      "id, amount_paid, contract_id, payment_date, contract:contracts(profit_distributed, total_price)"
     )
     .eq("id", values.paymentId)
     .single();
@@ -409,6 +422,38 @@ export async function editPaymentAmount(
 
   const oldAmount = Number(payment.amount_paid);
   const newAmount = round2(values.newAmount);
+
+  // Same rule as recording a brand-new payment: the edited amount is
+  // allowed to exceed a single installment (it spills into the next
+  // ones), but the contract's payments can never add up to more than
+  // its total price. Check against every OTHER payment on this
+  // contract plus the new amount, rather than the contract's current
+  // remaining_balance, since remaining_balance reflects the OLD amount
+  // for this payment and would double-count it.
+  const { data: otherPayments, error: otherPaymentsError } = await supabase
+    .from("payments")
+    .select("amount_paid")
+    .eq("contract_id", payment.contract_id)
+    .neq("id", values.paymentId);
+
+  if (otherPaymentsError) {
+    throw new PaymentServiceError(
+      `Failed to verify other payments on this contract: ${otherPaymentsError.message}`
+    );
+  }
+
+  const totalPrice = Number(payment.contract?.total_price ?? 0);
+  const otherPaymentsTotal = (otherPayments ?? []).reduce(
+    (sum, p) => sum + Number(p.amount_paid),
+    0
+  );
+  const maxAllowedForThisPayment = round2(totalPrice - otherPaymentsTotal);
+
+  if (newAmount > maxAllowedForThisPayment) {
+    throw new PaymentServiceError(
+      `Setting this payment to Rs. ${newAmount.toLocaleString()} would bring the contract's total payments to more than its Rs. ${totalPrice.toLocaleString()} total price. The most this payment can be set to (given the contract's other payments) is Rs. ${maxAllowedForThisPayment.toLocaleString()}. Please double-check the amount before submitting.`
+    );
+  }
 
   const { error: logError } = await supabase.from("payment_edits").insert({
     payment_id: values.paymentId,
