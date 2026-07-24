@@ -9,6 +9,8 @@ export interface ExportInstallment {
   installmentNumber: number;
   dueDate: string;
   installmentAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
   status: InstallmentStatus;
 }
 
@@ -89,6 +91,8 @@ export async function getContractsForExport(
     installment_number: number;
     due_date: string;
     installment_amount: number;
+    paid_amount: number;
+    remaining_amount: number;
     status: InstallmentStatus;
   }[] = [];
 
@@ -99,11 +103,15 @@ export async function getContractsForExport(
         installment_number: number;
         due_date: string;
         installment_amount: number;
+        paid_amount: number;
+        remaining_amount: number;
         status: InstallmentStatus;
       }>((from, to) =>
         supabase
           .from("installments")
-          .select("contract_id, installment_number, due_date, installment_amount, status")
+          .select(
+            "contract_id, installment_number, due_date, installment_amount, paid_amount, remaining_amount, status"
+          )
           .in("contract_id", chunk)
           .order("installment_number", { ascending: true })
           .range(from, to)
@@ -123,6 +131,8 @@ export async function getContractsForExport(
       installmentNumber: inst.installment_number,
       dueDate: inst.due_date,
       installmentAmount: inst.installment_amount,
+      paidAmount: inst.paid_amount,
+      remainingAmount: inst.remaining_amount,
       status: inst.status,
     });
     installmentsByContract.set(inst.contract_id, list);
@@ -152,15 +162,21 @@ const HEADER_FILL: ExcelJS.Fill = {
 const PAID_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
-  fgColor: { argb: "FFC6EFCE" },
+  fgColor: { argb: "FF57BB6E" },
+};
+const PARTIAL_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFFFB84D" },
 };
 const UNPAID_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
-  fgColor: { argb: "FFFFC7CE" },
+  fgColor: { argb: "FFE8544B" },
 };
-const PAID_FONT_COLOR = "FF006100";
-const UNPAID_FONT_COLOR = "FF9C0006";
+const PAID_FONT_COLOR = "FF003D14";
+const PARTIAL_FONT_COLOR = "FF5C3A00";
+const UNPAID_FONT_COLOR = "FFFFFFFF";
 const THIN_BORDER: Partial<ExcelJS.Border> = { style: "thin", color: { argb: "FFD9D9D9" } };
 
 const MONTH_ABBR = [
@@ -172,10 +188,11 @@ const MONTH_ABBR = [
  * Builds the "one complete row per contract" print/export workbook.
  * Installment columns are dynamic — as many as the contract with the
  * most installments in this export needs; contracts with fewer just
- * have blank trailing cells. Each installment cell keeps its amount as
- * a real number (so Subtotal can SUM it) but displays the due month
- * inline via a per-cell custom number format, and is filled green when
- * PAID or red for anything not fully paid (PENDING/PARTIAL/OVERDUE).
+ * have blank trailing cells. Each installment cell displays the due
+ * month inline via a per-cell custom number format, and is colored one
+ * of three ways: green + full amount when PAID, amber + the remaining
+ * (still-owed) amount when partially paid, or red + full amount when
+ * nothing has been paid yet (PENDING/OVERDUE).
  */
 export function buildContractsExportWorkbook(
   contracts: ExportContract[],
@@ -233,9 +250,12 @@ export function buildContractsExportWorkbook(
   legendRow.getCell(1).value = "Paid";
   legendRow.getCell(1).fill = PAID_FILL;
   legendRow.getCell(1).font = { color: { argb: PAID_FONT_COLOR }, bold: true };
-  legendRow.getCell(2).value = "Unpaid / Overdue";
-  legendRow.getCell(2).fill = UNPAID_FILL;
-  legendRow.getCell(2).font = { color: { argb: UNPAID_FONT_COLOR }, bold: true };
+  legendRow.getCell(2).value = "Partially Paid";
+  legendRow.getCell(2).fill = PARTIAL_FILL;
+  legendRow.getCell(2).font = { color: { argb: PARTIAL_FONT_COLOR }, bold: true };
+  legendRow.getCell(3).value = "Unpaid / Overdue";
+  legendRow.getCell(3).fill = UNPAID_FILL;
+  legendRow.getCell(3).font = { color: { argb: UNPAID_FONT_COLOR }, bold: true };
 
   // Header row (row 4)
   const headerRowNumber = 4;
@@ -273,22 +293,39 @@ export function buildContractsExportWorkbook(
 
     contract.installments.forEach((inst, idx) => {
       const cell = row.getCell(firstInstallmentCol + idx);
-      cell.value = inst.installmentAmount;
       const due = new Date(inst.dueDate);
       const monthLabel = `${MONTH_ABBR[due.getMonth()]} '${String(due.getFullYear()).slice(2)}`;
-      cell.numFmt = `#,##0" – ${monthLabel}"`;
+
       const isPaid = inst.status === "PAID";
-      cell.fill = isPaid ? PAID_FILL : UNPAID_FILL;
-      cell.font = { color: { argb: isPaid ? PAID_FONT_COLOR : UNPAID_FONT_COLOR } };
+      // Treat as partial whenever some (but not all) of the installment has
+      // been paid, regardless of the exact status label — this is what
+      // should get the amber color and the still-owed amount, not the red
+      // "nothing paid" color with the full original installment amount.
+      const isPartial = !isPaid && inst.paidAmount > 0 && inst.remainingAmount > 0;
+
+      if (isPartial) {
+        // Show what's still owed on this installment, not the full amount —
+        // the full amount would overstate what's left and misrepresent it
+        // as unpaid.
+        cell.value = inst.remainingAmount;
+        cell.numFmt = `#,##0" due – ${monthLabel}"`;
+        cell.fill = PARTIAL_FILL;
+        cell.font = { color: { argb: PARTIAL_FONT_COLOR }, bold: true };
+      } else {
+        cell.value = inst.installmentAmount;
+        cell.numFmt = `#,##0" – ${monthLabel}"`;
+        cell.fill = isPaid ? PAID_FILL : UNPAID_FILL;
+        cell.font = { color: { argb: isPaid ? PAID_FONT_COLOR : UNPAID_FONT_COLOR } };
+      }
     });
 
-    const firstInstLetter = sheet.getColumn(firstInstallmentCol).letter;
-    const lastInstLetter = sheet.getColumn(firstInstallmentCol + maxInstallments - 1).letter;
+    // Subtotal is the contract's actual total price, taken directly from
+    // the contract rather than SUM()'d from the installment cells above.
+    // Partial installments intentionally display their remaining (not
+    // full) amount now, so a SUM() formula would understate the true
+    // total price whenever any installment in the row was only partly paid.
     const subtotalCell = row.getCell(subtotalCol);
-    subtotalCell.value =
-      maxInstallments > 0
-        ? { formula: `SUM(${firstInstLetter}${rowNum}:${lastInstLetter}${rowNum})` }
-        : 0;
+    subtotalCell.value = contract.totalPrice;
     subtotalCell.numFmt = '"Rs. "#,##0';
     subtotalCell.font = { bold: true };
 
