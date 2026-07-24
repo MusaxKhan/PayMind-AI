@@ -1,4 +1,4 @@
-# Sitara Traders — Installment Management System
+# PayMind AI — Installment Management System
 
 Production-ready Next.js 15 app for managing installment-based sales:
 clients, contracts, auto-generated installment schedules, payments with
