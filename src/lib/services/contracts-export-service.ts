@@ -28,7 +28,8 @@ export interface ExportContract {
   remainingBalance: number;
   installments: ExportInstallment[];
 }
-
+const REMAINING_BALANCE_RED = "FFE8544B";   // same red as unpaid fill
+const REMAINING_BALANCE_GREEN = "FF003D14"; // same green as paid font
 /**
  * Fetches everything the contracts Excel export needs in two rounds of
  * queries (contracts+client, then all their installments) rather than
@@ -230,7 +231,7 @@ export function buildContractsExportWorkbook(
     { length: maxInstallments },
     (_, i) => `Inst ${i + 1}`
   );
-  const headers = [...fixedHeaders, ...installmentHeaders, "Subtotal", "Remaining Balance"];
+  const headers = [...fixedHeaders, ...installmentHeaders, "Total Paid", "Remaining Balance"];
   const totalCols = headers.length;
   const firstInstallmentCol = fixedHeaders.length + 1;
   const subtotalCol = firstInstallmentCol + maxInstallments;
@@ -324,8 +325,13 @@ export function buildContractsExportWorkbook(
     // Partial installments intentionally display their remaining (not
     // full) amount now, so a SUM() formula would understate the true
     // total price whenever any installment in the row was only partly paid.
+    const totalPaid = contract.installments.reduce(
+      (sum, installment) => sum + installment.paidAmount,
+      0
+    );
+
     const subtotalCell = row.getCell(subtotalCol);
-    subtotalCell.value = contract.totalPrice;
+    subtotalCell.value = totalPaid;
     subtotalCell.numFmt = '"Rs. "#,##0';
     subtotalCell.font = { bold: true };
 
@@ -334,7 +340,12 @@ export function buildContractsExportWorkbook(
     remainingCell.numFmt = '"Rs. "#,##0';
     remainingCell.font = {
       bold: true,
-      color: { argb: contract.remainingBalance > 0 ? UNPAID_FONT_COLOR : PAID_FONT_COLOR },
+      color: {
+        argb:
+          contract.remainingBalance > 0
+            ? REMAINING_BALANCE_RED
+            : REMAINING_BALANCE_GREEN,
+      },
     };
 
     for (let c = 1; c <= totalCols; c++) {
@@ -358,7 +369,7 @@ export function buildContractsExportWorkbook(
   sheet.getColumn(7).width = 14;
   sheet.getColumn(8).width = 10;
   for (let i = 0; i < maxInstallments; i++) {
-    sheet.getColumn(firstInstallmentCol + i).width = 16;
+    sheet.getColumn(firstInstallmentCol + i).width = 23;
   }
   sheet.getColumn(subtotalCol).width = 15;
   sheet.getColumn(remainingBalanceCol).width = 17;
