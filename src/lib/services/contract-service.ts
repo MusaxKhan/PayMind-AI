@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { writeCashLedgerEntry, syncCashLedgerForContractEdit } from "./cash-ledger-service";
+import { sanitizeSearchTerm } from "@/lib/utils/search";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ContractRow, Database } from "@/types/database";
 import {
@@ -208,7 +209,7 @@ export async function listContracts(params?: {
       query = query.eq("status", params.status);
     }
     if (params?.search && params.search.trim().length > 0) {
-      const term = params.search.trim();
+      const term = sanitizeSearchTerm(params.search);
       query = query.or(`contract_code.ilike.%${term}%,product_name.ilike.%${term}%`);
     }
 

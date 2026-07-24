@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { sanitizeSearchTerm } from "@/lib/utils/search";
 import type { SearchResult } from "@/types/domain";
 
 export class SearchServiceError extends Error {}
@@ -7,6 +8,7 @@ export async function globalSearch(term: string): Promise<SearchResult[]> {
   const trimmed = term.trim();
   if (trimmed.length < 2) return [];
 
+  const safe = sanitizeSearchTerm(trimmed);
   const supabase = await createClient();
 
   const [clientsRes, contractsRes, investorsRes] = await Promise.all([
@@ -15,18 +17,18 @@ export async function globalSearch(term: string): Promise<SearchResult[]> {
       .select("id, client_code, name, cnic, phone")
       .eq("is_deleted", false)
       .or(
-        `name.ilike.%${trimmed}%,cnic.ilike.%${trimmed}%,phone.ilike.%${trimmed}%,client_code.ilike.%${trimmed}%`
+        `name.ilike.%${safe}%,cnic.ilike.%${safe}%,phone.ilike.%${safe}%,client_code.ilike.%${safe}%`
       )
       .limit(8),
     supabase
       .from("contracts")
       .select("id, contract_code, product_name, client:clients(name)")
-      .or(`contract_code.ilike.%${trimmed}%,product_name.ilike.%${trimmed}%`)
+      .or(`contract_code.ilike.%${safe}%,product_name.ilike.%${safe}%`)
       .limit(8),
     supabase
       .from("investors")
       .select("id, name, active")
-      .ilike("name", `%${trimmed}%`)
+      .ilike("name", `%${safe}%`)
       .limit(5),
   ]);
 

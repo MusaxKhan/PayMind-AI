@@ -20,6 +20,7 @@ import { getClientsList } from "@/lib/actions/client-picker-actions";
 import { offlineDb } from "@/lib/offline/db";
 import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { formatDate } from "@/lib/utils/format";
+import { normalizeSearchTerm } from "@/lib/utils/search";
 import { cn } from "@/lib/utils";
 import { BlacklistBadge } from "@/components/shared/blacklist-badge";
 import type { ClientWithBlacklistStatus } from "@/types/domain";
@@ -60,7 +61,7 @@ export default function ClientsPage() {
         .filter((c) => {
           if (c.isDeleted) return false;
 
-          const term = search.trim().toLowerCase();
+          const term = normalizeSearchTerm(search);
           if (!term) return true;
 
           const numericTerm = normalizeNumber(term);

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { mapClient, mapContract } from "./mappers";
 import { BLACKLIST_OVERDUE_MONTHS_THRESHOLD } from "@/lib/utils/calculations";
+import { normalizeSearchTerm } from "@/lib/utils/search";
 import type {
   Client,
   ClientWithContracts,
@@ -60,7 +61,7 @@ export async function listClients(params?: {
   let clients = (data ?? []).map(mapClient);
 
   if (params?.search?.trim()) {
-    const term = params.search.trim().toLowerCase();
+    const term = normalizeSearchTerm(params.search);
     const numericTerm = normalizeNumber(term);
     clients = clients.filter((c) => {
       return (
