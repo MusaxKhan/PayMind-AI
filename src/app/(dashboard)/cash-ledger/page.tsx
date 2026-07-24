@@ -1,4 +1,5 @@
-import { ArrowDownCircle, ArrowUpCircle, Wallet } from "lucide-react";
+import Link from "next/link";
+import { ArrowDownCircle, ArrowUpCircle, ChevronRight, Wallet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,6 +28,49 @@ const ENTRY_LABELS: Record<CashLedgerEntryType, string> = {
 };
 
 const CASH_IN_TYPES: CashLedgerEntryType[] = ["investment", "loan", "payment_received"];
+
+/**
+ * Resolves a cash ledger entry to the page for whatever it actually
+ * came from. Contracts have their own /contracts/[id] detail page, so
+ * those link straight there. Loans, business expenses, and investor
+ * withdrawals don't have dedicated detail pages — they're rows in a
+ * list — so those link to the relevant list page with a URL fragment
+ * (e.g. #loan-12) pointing at that specific row; the corresponding
+ * list pages give each row a matching `id` so the browser scrolls
+ * straight to it and the sitara-target-highlight CSS (globals.css)
+ * flashes it briefly.
+ */
+function resolveEntryHref(entry: {
+  entryType: CashLedgerEntryType;
+  contractId: number | null;
+  loanId: number | null;
+  businessExpenseId: number | null;
+  investorId: number | null;
+  withdrawalId: number | null;
+}): string | null {
+  switch (entry.entryType) {
+    case "payment_received":
+    case "purchase":
+      return entry.contractId ? `/contracts/${entry.contractId}` : null;
+    case "loan":
+    case "loan_repayment":
+      return entry.loanId ? `/loans#loan-${entry.loanId}` : null;
+    case "business_expense":
+      return entry.businessExpenseId
+        ? `/expenses#expense-${entry.businessExpenseId}`
+        : null;
+    case "withdrawal":
+      return entry.investorId
+        ? `/investors/${entry.investorId}${
+            entry.withdrawalId ? `#withdrawal-${entry.withdrawalId}` : ""
+          }`
+        : null;
+    case "investment":
+      return entry.investorId ? `/investors/${entry.investorId}` : null;
+    default:
+      return null;
+  }
+}
 
 export default async function CashLedgerPage() {
   const [entries, cashInHand] = await Promise.all([
@@ -91,25 +135,62 @@ export default async function CashLedgerPage() {
               <TableBody>
                 {rowsWithBalance.map((entry) => {
                   const isCashIn = CASH_IN_TYPES.includes(entry.entryType);
+                  const href = resolveEntryHref(entry);
                   return (
-                    <TableRow key={entry.id}>
+                    <TableRow
+                      key={entry.id}
+                      className={href ? "cursor-pointer hover:bg-muted/50" : undefined}
+                    >
                       <TableCell className="text-muted-foreground">
-                        {formatDate(entry.entryDate)}
+                        {href ? (
+                          <Link href={href} className="block">
+                            {formatDate(entry.entryDate)}
+                          </Link>
+                        ) : (
+                          formatDate(entry.entryDate)
+                        )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={isCashIn ? "completed" : "overdue"}>
-                          <span className="flex items-center gap-1">
-                            {isCashIn ? (
-                              <ArrowUpCircle className="h-3 w-3" />
-                            ) : (
-                              <ArrowDownCircle className="h-3 w-3" />
-                            )}
-                            {ENTRY_LABELS[entry.entryType]}
-                          </span>
-                        </Badge>
+                        {href ? (
+                          <Link href={href} className="block">
+                            <Badge variant={isCashIn ? "completed" : "overdue"}>
+                              <span className="flex items-center gap-1">
+                                {isCashIn ? (
+                                  <ArrowUpCircle className="h-3 w-3" />
+                                ) : (
+                                  <ArrowDownCircle className="h-3 w-3" />
+                                )}
+                                {ENTRY_LABELS[entry.entryType]}
+                              </span>
+                            </Badge>
+                          </Link>
+                        ) : (
+                          <Badge variant={isCashIn ? "completed" : "overdue"}>
+                            <span className="flex items-center gap-1">
+                              {isCashIn ? (
+                                <ArrowUpCircle className="h-3 w-3" />
+                              ) : (
+                                <ArrowDownCircle className="h-3 w-3" />
+                              )}
+                              {ENTRY_LABELS[entry.entryType]}
+                            </span>
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="max-w-[280px] truncate text-muted-foreground">
-                        {entry.description ?? "—"}
+                        {href ? (
+                          <Link
+                            href={href}
+                            className="flex items-center gap-1 hover:text-accent hover:underline"
+                          >
+                            <span className="truncate">
+                              {entry.description ?? "—"}
+                            </span>
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                          </Link>
+                        ) : (
+                          (entry.description ?? "—")
+                        )}
                       </TableCell>
                       <TableCell
                         className={`tabular-nums font-medium ${

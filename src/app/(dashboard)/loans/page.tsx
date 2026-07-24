@@ -79,7 +79,7 @@ export default async function LoansPage() {
               </TableHeader>
               <TableBody>
                 {loans.map((loan) => (
-                  <TableRow key={loan.id}>
+                  <TableRow key={loan.id} id={`loan-${loan.id}`}>
                     <TableCell className="font-medium text-foreground">
                       {loan.lenderName}
                     </TableCell>

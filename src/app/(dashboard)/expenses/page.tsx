@@ -124,7 +124,7 @@ export default async function ExpensesPage() {
                   </TableHeader>
                   <TableBody>
                     {businessExpenses.map((e) => (
-                      <TableRow key={e.id}>
+                      <TableRow key={e.id} id={`expense-${e.id}`}>
                         <TableCell>{formatDate(e.expenseDate)}</TableCell>
                         <TableCell className="font-medium text-foreground">
                           {e.title}

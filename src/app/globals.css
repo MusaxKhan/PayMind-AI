@@ -235,3 +235,21 @@
     animation-name: sitara-zoom-out;
   }
 }
+
+/*
+ * Rows deep-linked to from the cash ledger (e.g. #loan-12, #expense-7,
+ * #withdrawal-3) get a temporary highlight so it's obvious which row
+ * you were sent to, without needing any client-side JS — this relies
+ * purely on the CSS :target pseudo-class matching the URL fragment.
+ */
+tr:target {
+  animation: sitara-target-highlight 2.5s ease-out;
+}
+@keyframes sitara-target-highlight {
+  from {
+    background-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}

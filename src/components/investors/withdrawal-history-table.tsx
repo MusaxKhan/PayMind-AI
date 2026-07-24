@@ -34,7 +34,7 @@ export function WithdrawalHistoryTable({
       </TableHeader>
       <TableBody>
         {withdrawals.map((w) => (
-          <TableRow key={w.id}>
+          <TableRow key={w.id} id={`withdrawal-${w.id}`}>
             <TableCell>{formatDate(w.withdrawalDate)}</TableCell>
             <TableCell className="tabular-nums font-medium text-status-overdue">
               −{formatPKR(w.amount)}
