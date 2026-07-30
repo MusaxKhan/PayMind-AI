@@ -1,5 +1,14 @@
 # Sitara Traders — Installment Management System
 
+![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=next.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Auth-3ECF8E?logo=supabase&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-v4-06B6D4?logo=tailwindcss&logoColor=white)
+![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white)
+![Offline First](https://img.shields.io/badge/Offline-first%20(Dexie)-orange)
+
+
+
 Production-ready Next.js 15 app for managing installment-based sales:
 clients, contracts, auto-generated installment schedules, payments with
 automatic allocation, an invite-only admin/partner auth system, a full
@@ -26,6 +35,19 @@ All three phases are implemented and verified end-to-end:
 - **Zod** for validation (used identically client-side and server-side)
 - **Dexie** (IndexedDB) for the offline cache + outbox queue
 - A hand-written service worker for app-shell caching (no external PWA library)
+
+---
+
+---
+
+## Contents
+
+1. [Setup](#1-setup)
+2. [Architecture](#2-architecture)
+3. [Offline Behavior — what a partner actually sees](#3-offline-behavior--what-a-partner-actually-sees)
+4. [What's Implemented (Full Detail)](#4-whats-implemented-full-detail)
+5. [What's Genuinely Not Built](#5-whats-genuinely-not-built)
+6. [Notes on Production Hardening](#6-notes-on-production-hardening)
 
 ---
 
@@ -132,6 +154,52 @@ the same network):
 
 ## 2. Architecture
 
+### At a glance
+
+```mermaid
+flowchart LR
+    subgraph Client["Browser / Installed PWA"]
+        UI["React UI\n(Server + Client Components)"]
+        Dexie[("Dexie\nIndexedDB cache + outbox")]
+        SW["Service Worker\n(app-shell cache only)"]
+    end
+
+    subgraph Server["Next.js 15"]
+        SA["Server Actions"]
+        API["/api/sync route\n(replays queued writes)"]
+        SVC["Service layer\n(validated business logic)"]
+    end
+
+    subgraph Supabase["Supabase"]
+        PG[("PostgreSQL\n+ RLS")]
+        RPC["Atomic RPC functions\ndistribute_contract_profit\ncreate_withdrawal_with_balance_check"]
+        AUTH["Auth"]
+    end
+
+    UI -- "online: direct call" --> SA
+    UI -- "offline: enqueue intent" --> Dexie
+    Dexie -- "reconnect: drain outbox" --> API
+    SW -. "precaches JS/CSS only\n(never data)" .-> UI
+    SA --> SVC
+    API --> SVC
+    SVC --> PG
+    SVC --> RPC
+    RPC --> PG
+    UI -. "auth session" .-> AUTH
+    PG -. "live snapshot refresh\n(every 2 min online)" .-> Dexie
+```
+
+Every write — online or replayed from the offline queue — goes through
+the exact same `service layer` functions (`createClientRecord`,
+`createContractRecord`, `recordPayment`, …). The offline client never
+computes or sends a final balance; it sends *intent*, and the server
+recomputes against current data at sync time. That single rule is what
+makes "append, don't overwrite" safe for money — see
+[How offline actually works here](#how-offline-actually-works-here) for
+the full reasoning.
+
+### Directory layout
+
 ```
 src/
 ├── app/
@@ -215,6 +283,26 @@ date against this contract"), and the server recomputes the real
 allocation fresh, against current data, at sync time. This is what makes
 the "append, don't overwrite" model safe — we're replaying actions, not
 merging conflicting numbers.
+
+```mermaid
+sequenceDiagram
+    participant P as Partner (phone, offline)
+    participant D as Dexie outbox
+    participant S as /api/sync
+    participant SVC as Service layer
+    participant PG as Postgres
+
+    P->>D: Record payment intent<br/>("Rs. 5,000 on Contract #34, 18-Aug")
+    Note over D: Queued locally.<br/>No amount is pre-computed.
+    P--)P: Connectivity returns
+    D->>S: Drain outbox, oldest first
+    S->>SVC: recordPayment(intent)
+    Note over SVC: Same function the<br/>online UI calls directly
+    SVC->>PG: Re-fetch current installments<br/>& allocate fresh
+    PG-->>SVC: Updated balances
+    SVC-->>S: Success (or a real error, e.g. duplicate)
+    S-->>D: Mark synced (or failed + reason, retry/discard available)
+```
 
 **Why a contract created offline for a client created offline (in the
 same session) still works.** An offline-created client is cached
@@ -354,6 +442,23 @@ same page, just rendering a different subset of whatever's already loaded.
   if no phase existed yet at completion time
 - Withdrawals: atomic balance-check-and-insert, can never overdraw an investor
   even under concurrent requests
+
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE: Contract created
+    ACTIVE --> OVERDUE: An installment's due date passes unpaid
+    OVERDUE --> ACTIVE: Overdue installments caught up
+    ACTIVE --> COMPLETED: Last installment fully paid
+    OVERDUE --> COMPLETED: Last installment fully paid
+    COMPLETED --> [*]
+
+    state COMPLETED {
+        [*] --> Distributing: recomputeContractStatus() detects<br/>ACTIVE/OVERDUE to COMPLETED
+        Distributing --> Distributed: distribute_contract_profit()<br/>(atomic, row-locked, once-only)
+        Distributing --> AwaitingPhase: no active business phase yet
+        AwaitingPhase --> Distributed: manual retry once a phase exists
+    }
+```
 
 ### Phase 3 — Offline & PWA
 - Dexie local cache (clients, contracts, installments, payments) + outbox queue
