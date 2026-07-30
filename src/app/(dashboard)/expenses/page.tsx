@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ContractStatusBadge } from "@/components/shared/status-badge";
+import { EditBusinessExpenseDialog } from "@/components/expenses/edit-business-expense-dialog";
 import {
   listBusinessExpenses,
   listContractPurchaseExpenses,
@@ -120,6 +121,7 @@ export default async function ExpensesPage() {
                       <TableHead>Category</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Notes / Receipt</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -141,6 +143,9 @@ export default async function ExpensesPage() {
                           {[e.notes, e.receiptReference]
                             .filter(Boolean)
                             .join(" · ") || "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <EditBusinessExpenseDialog expense={e} />
                         </TableCell>
                       </TableRow>
                     ))}

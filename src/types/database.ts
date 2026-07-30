@@ -547,6 +547,18 @@ export interface Database {
         };
         Returns: BusinessExpenseRow[];
       };
+      update_business_expense_with_balance_check: {
+        Args: {
+          p_expense_id: number;
+          p_title: string;
+          p_amount: number;
+          p_category: BusinessExpenseCategory;
+          p_expense_date: string;
+          p_notes: string | null;
+          p_receipt_reference: string | null;
+        };
+        Returns: BusinessExpenseRow[];
+      };
       investor_available_balance: {
         Args: { p_investor_id: number };
         Returns: number;

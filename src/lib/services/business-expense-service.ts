@@ -5,7 +5,10 @@ import type {
   BusinessExpense,
   ContractPurchaseExpense,
 } from "@/types/domain";
-import type { BusinessExpenseFormValues } from "@/lib/validations/business-expense";
+import type {
+  BusinessExpenseFormValues,
+  BusinessExpenseEditFormValues,
+} from "@/lib/validations/business-expense";
 
 export class BusinessExpenseServiceError extends Error {}
 
@@ -41,6 +44,46 @@ export async function createBusinessExpense(
   if (!row) {
     throw new BusinessExpenseServiceError(
       "Expense could not be recorded — no row returned."
+    );
+  }
+
+  return mapBusinessExpense(row);
+}
+
+/**
+ * Edits a business expense — title, amount, category, date, notes, or
+ * receipt reference — and keeps its linked cash_ledger row in sync in
+ * the same atomic transaction, via
+ * update_business_expense_with_balance_check() in migration 007. If the
+ * new amount would take cash-in-hand below zero, the whole call fails
+ * and nothing is written, same as creating a new expense.
+ */
+export async function updateBusinessExpense(
+  values: BusinessExpenseEditFormValues
+): Promise<BusinessExpense> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc(
+    "update_business_expense_with_balance_check",
+    {
+      p_expense_id: values.expenseId,
+      p_title: values.title,
+      p_amount: values.amount,
+      p_category: values.category,
+      p_expense_date: values.expenseDate,
+      p_notes: values.notes || null,
+      p_receipt_reference: values.receiptReference || null,
+    }
+  );
+
+  if (error) {
+    throw new BusinessExpenseServiceError(error.message);
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) {
+    throw new BusinessExpenseServiceError(
+      "Expense could not be updated — no row returned."
     );
   }
 

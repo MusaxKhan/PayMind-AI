@@ -24,3 +24,11 @@ export const businessExpenseSchema = z.object({
 });
 
 export type BusinessExpenseFormValues = z.infer<typeof businessExpenseSchema>;
+
+export const businessExpenseEditSchema = businessExpenseSchema.extend({
+  expenseId: z.coerce.number().int().positive(),
+});
+
+export type BusinessExpenseEditFormValues = z.infer<
+  typeof businessExpenseEditSchema
+>;
