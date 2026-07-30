@@ -121,3 +121,49 @@ export async function recordLoanRepayment(values: {
   }
   return mapLoan(row);
 }
+
+/**
+ * Deletes a loan and, in the same atomic transaction, decides what
+ * happens to cash-in-hand via delete_loan() in migration 008 — same
+ * reasoning as deleteContract:
+ *   - reverseCash = true ("full undo"): removes every cash_ledger row
+ *     tied to this loan (the original inflow AND every repayment made
+ *     against it), so cash-in-hand ends up exactly where it would be
+ *     if this loan had never happened. Refused by the Postgres function
+ *     if that would take cash-in-hand below zero (the inflow may
+ *     already be spent elsewhere).
+ *   - reverseCash = false ("keep cash history"): the loan's
+ *     cash_ledger rows are kept (cash-in-hand and historical totals
+ *     stay exactly as they are) but detached from the loan record.
+ *
+ * Requires admin privileges; checked both here and again inside the
+ * Postgres function.
+ */
+export async function deleteLoan(
+  loanId: number,
+  reverseCash: boolean
+): Promise<void> {
+  const { requireAdmin, UserServiceError } = await import("./user-service");
+  try {
+    await requireAdmin();
+  } catch (err) {
+    if (err instanceof UserServiceError) {
+      throw new LoanServiceError(err.message);
+    }
+    throw err;
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("delete_loan", {
+    p_loan_id: loanId,
+    p_reverse_cash: reverseCash,
+  });
+
+  if (error) {
+    // The Postgres function's RAISE EXCEPTION messages (not found,
+    // would go cash-negative, not admin) come through as error.message
+    // and are already human-readable.
+    throw new LoanServiceError(error.message);
+  }
+}

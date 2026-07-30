@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import {
   createLoan,
   recordLoanRepayment,
+  deleteLoan,
   LoanServiceError,
 } from "@/lib/services/loan-service";
 import { loanSchema, loanRepaymentSchema } from "@/lib/validations/loan";
@@ -70,6 +71,30 @@ export async function recordLoanRepaymentAction(
     throw err;
   }
 
+  revalidatePath("/loans");
+  revalidatePath("/dashboard");
+  revalidatePath("/cash-ledger");
+  revalidatePath("/graphs");
+  return { success: true };
+}
+
+export async function deleteLoanAction(
+  loanId: number,
+  reverseCash: boolean
+): Promise<ActionResult> {
+  try {
+    await deleteLoan(loanId, reverseCash);
+  } catch (err) {
+    if (err instanceof LoanServiceError) {
+      return { success: false, error: err.message };
+    }
+    throw err;
+  }
+
+  // Same pages as create/repay — this loan's inflow (and, on full
+  // undo, its repayments) all feed into these, and a delete needs to
+  // invalidate them just as much as recording one does, or they'll
+  // keep showing the pre-delete numbers.
   revalidatePath("/loans");
   revalidatePath("/dashboard");
   revalidatePath("/cash-ledger");

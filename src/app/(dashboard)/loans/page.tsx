@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { LoanRepaymentDialog } from "@/components/loans/loan-repayment-dialog";
+import { DeleteLoanButton } from "@/components/loans/delete-loan-button";
 import { listLoans } from "@/lib/services/loan-service";
 import { getCashInHand } from "@/lib/services/cash-ledger-service";
 import { formatDate, formatPKR } from "@/lib/utils/format";
@@ -101,11 +102,19 @@ export default async function LoansPage() {
                       {formatDate(loan.loanDate)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <LoanRepaymentDialog
-                        loanId={loan.id}
-                        outstandingBalance={loan.outstandingBalance}
-                        cashInHand={cashInHand}
-                      />
+                      <div className="flex justify-end gap-2">
+                        <LoanRepaymentDialog
+                          loanId={loan.id}
+                          outstandingBalance={loan.outstandingBalance}
+                          cashInHand={cashInHand}
+                        />
+                        <DeleteLoanButton
+                          loanId={loan.id}
+                          lenderName={loan.lenderName}
+                          amount={loan.amount}
+                          amountRepaid={loan.amountRepaid}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

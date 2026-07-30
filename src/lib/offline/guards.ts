@@ -31,6 +31,7 @@ export const ONLINE_ONLY_OPERATIONS = [
   "create_business_expense",
   "update_business_expense",
   "delete_contract",
+  "delete_loan",
 ] as const;
 
 export type OnlineOnlyOperation = (typeof ONLINE_ONLY_OPERATIONS)[number];
@@ -58,6 +59,8 @@ export const OFFLINE_BLOCKED_MESSAGE: Record<OnlineOnlyOperation, string> = {
     "Editing an expense needs a live connection — it re-checks cash-in-hand against the new amount and keeps the cash ledger in sync, which only works online.",
   delete_contract:
     "Deleting a contract needs a live connection — it locks the contract row and rewrites the cash ledger in one atomic transaction, which only works online. Try again once you're back online.",
+  delete_loan:
+    "Deleting a loan needs a live connection — it locks the loan row and rewrites the cash ledger in one atomic transaction, which only works online. Try again once you're back online.",
 };
 
 /**
