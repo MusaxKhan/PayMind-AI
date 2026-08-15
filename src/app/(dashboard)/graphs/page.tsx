@@ -65,6 +65,13 @@ function formatTooltipPKR(
   return formatPKR(num);
 }
 
+function formatInvestmentShare(percent: number): string {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 3,
+  }).format(percent * 100);
+}
+
 export default function GraphsPage() {
   const [data, setData] = React.useState<GraphsData | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -286,7 +293,7 @@ export default function GraphsPage() {
                       cy="50%"
                       outerRadius={95}
                       label={(props: { investorName?: string; percent?: number }) =>
-                        `${props.investorName}: ${((props.percent ?? 0) * 100).toFixed(0)}%`
+                        `${props.investorName}: ${formatInvestmentShare(props.percent ?? 0)}%`
                       }
                       labelLine={false}
                     >
