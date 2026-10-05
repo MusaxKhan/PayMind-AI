@@ -185,7 +185,9 @@ export type CashLedgerEntryRow = {
     | "purchase"
     | "withdrawal"
     | "loan_repayment"
-    | "business_expense";
+    | "business_expense"
+    | "loan_given"
+    | "loan_given_repayment";
   amount: number;
   contract_id: number | null;
   investor_id: number | null;
@@ -194,6 +196,8 @@ export type CashLedgerEntryRow = {
   withdrawal_id: number | null;
   payment_id: number | null;
   business_expense_id: number | null;
+  given_loan_id: number | null;
+  given_loan_payment_id: number | null;
   description: string | null;
   entry_date: string;
   created_at: string;
@@ -238,6 +242,59 @@ export type LoanDeletionLogRow = {
   id: number;
   loan_id: number;
   lender_name: string;
+  cash_reversed: boolean;
+  deleted_by: string | null;
+  deleted_by_email: string | null;
+  snapshot: unknown;
+  created_at: string;
+}
+
+export type GivenLoanRow = {
+  id: number;
+  loan_code: string;
+  client_id: number | null;
+  borrower_name: string;
+  borrower_phone: string | null;
+  reason: string | null;
+  amount: number;
+  number_of_installments: number;
+  amount_per_installment: number;
+  loan_date: string;
+  expected_end_date: string;
+  amount_repaid: number;
+  status: "ACTIVE" | "COMPLETED";
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type GivenLoanInstallmentRow = {
+  id: number;
+  given_loan_id: number;
+  installment_number: number;
+  due_date: string;
+  installment_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
+  status: "PENDING" | "PARTIAL" | "PAID";
+}
+
+export type GivenLoanPaymentRow = {
+  id: number;
+  given_loan_id: number;
+  amount_paid: number;
+  remaining_balance: number;
+  payment_date: string;
+  payment_method: string | null;
+  remarks: string | null;
+  created_at: string;
+}
+
+export type GivenLoanDeletionLogRow = {
+  id: number;
+  given_loan_id: number;
+  loan_code: string;
+  borrower_name: string;
   cash_reversed: boolean;
   deleted_by: string | null;
   deleted_by_email: string | null;
@@ -514,6 +571,48 @@ export interface Database {
         Update: Partial<LoanRow>;
         Relationships: [];
       };
+      given_loans: {
+        Row: GivenLoanRow;
+        Insert: Partial<GivenLoanRow>;
+        Update: Partial<GivenLoanRow>;
+        Relationships: [
+          {
+            foreignKeyName: "given_loans_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      given_loan_installments: {
+        Row: GivenLoanInstallmentRow;
+        Insert: Partial<GivenLoanInstallmentRow>;
+        Update: Partial<GivenLoanInstallmentRow>;
+        Relationships: [
+          {
+            foreignKeyName: "given_loan_installments_given_loan_id_fkey";
+            columns: ["given_loan_id"];
+            isOneToOne: false;
+            referencedRelation: "given_loans";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      given_loan_payments: {
+        Row: GivenLoanPaymentRow;
+        Insert: Partial<GivenLoanPaymentRow>;
+        Update: Partial<GivenLoanPaymentRow>;
+        Relationships: [
+          {
+            foreignKeyName: "given_loan_payments_given_loan_id_fkey";
+            columns: ["given_loan_id"];
+            isOneToOne: false;
+            referencedRelation: "given_loans";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       contract_deletion_log: {
         Row: ContractDeletionLogRow;
         Insert: Partial<ContractDeletionLogRow>;
@@ -635,6 +734,35 @@ export interface Database {
           p_reverse_cash: boolean;
         };
         Returns: LoanDeletionLogRow;
+      };
+      create_given_loan: {
+        Args: {
+          p_client_id: number | null;
+          p_borrower_name: string | null;
+          p_borrower_phone: string | null;
+          p_reason: string | null;
+          p_amount: number;
+          p_number_of_installments: number;
+          p_loan_date: string;
+        };
+        Returns: GivenLoanRow[];
+      };
+      record_given_loan_payment: {
+        Args: {
+          p_given_loan_id: number;
+          p_amount: number;
+          p_payment_date: string;
+          p_payment_method: string | null;
+          p_remarks: string | null;
+        };
+        Returns: GivenLoanRow[];
+      };
+      delete_given_loan: {
+        Args: {
+          p_given_loan_id: number;
+          p_reverse_cash: boolean;
+        };
+        Returns: GivenLoanDeletionLogRow;
       };
     };
   };

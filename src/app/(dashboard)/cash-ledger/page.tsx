@@ -25,9 +25,16 @@ const ENTRY_LABELS: Record<CashLedgerEntryType, string> = {
   withdrawal: "Investor withdrawal",
   loan_repayment: "Loan repayment",
   business_expense: "Business expense",
+  loan_given: "Loan given out",
+  loan_given_repayment: "Given-loan repayment received",
 };
 
-const CASH_IN_TYPES: CashLedgerEntryType[] = ["investment", "loan", "payment_received"];
+const CASH_IN_TYPES: CashLedgerEntryType[] = [
+  "investment",
+  "loan",
+  "payment_received",
+  "loan_given_repayment",
+];
 
 /**
  * Resolves a cash ledger entry to the page for whatever it actually
@@ -44,6 +51,7 @@ function resolveEntryHref(entry: {
   entryType: CashLedgerEntryType;
   contractId: number | null;
   loanId: number | null;
+  givenLoanId: number | null;
   businessExpenseId: number | null;
   investorId: number | null;
   withdrawalId: number | null;
@@ -55,6 +63,9 @@ function resolveEntryHref(entry: {
     case "loan":
     case "loan_repayment":
       return entry.loanId ? `/loans#loan-${entry.loanId}` : null;
+    case "loan_given":
+    case "loan_given_repayment":
+      return entry.givenLoanId ? `/given-loans/${entry.givenLoanId}` : null;
     case "business_expense":
       return entry.businessExpenseId
         ? `/expenses#expense-${entry.businessExpenseId}`

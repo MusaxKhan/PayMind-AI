@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   BarChart3,
   Receipt,
+  Handshake,
+  BellRing,
 } from "lucide-react";
 import { StatCard } from "@/components/shared/stat-card";
 import { ContractStatusBadge } from "@/components/shared/status-badge";
@@ -27,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { getDashboardStats } from "@/lib/services/dashboard-service";
 import { getStorageUsage } from "@/lib/services/storage-usage-service";
+import { getGivenLoanDashboardSummary } from "@/lib/services/given-loan-service";
 import { StorageUsageCard } from "@/components/shared/storage-usage-card";
 import { listContracts } from "@/lib/services/contract-service";
 import { getActiveBusinessPhase } from "@/lib/services/business-phase-service";
@@ -41,6 +44,7 @@ export default async function DashboardPage() {
     activePhase,
     phases,
     storageUsage,
+    givenLoans,
   ] = await Promise.all([
     getDashboardStats(),
     listContracts({ status: "OVERDUE" }),
@@ -50,6 +54,9 @@ export default async function DashboardPage() {
     // rather than crashing the whole dashboard if migration 005
     // hasn't been applied yet.
     getStorageUsage().catch(() => null),
+    // Null (and no notifier) rather than a crashed dashboard if the
+    // Loans Given migration (011) hasn't been applied yet.
+    getGivenLoanDashboardSummary().catch(() => null),
   ]);
 
   // Quick mathematical metrics for modern UI highlights
@@ -98,6 +105,57 @@ export default async function DashboardPage() {
       </div>
       </div>
 
+      {/* Loans Given notifier: overdue repayments, or ones due this week */}
+      {givenLoans && (givenLoans.overdueCount > 0 || givenLoans.dueSoonCount > 0) && (
+        <Card
+          className={
+            givenLoans.overdueCount > 0
+              ? "border-rose-500/30 bg-gradient-to-r from-rose-500/10 to-transparent shadow-sm rounded-2xl overflow-hidden relative"
+              : "border-amber-500/25 bg-gradient-to-r from-amber-500/10 to-transparent shadow-sm rounded-2xl overflow-hidden relative"
+          }
+        >
+          <div
+            className={
+              givenLoans.overdueCount > 0
+                ? "absolute top-0 bottom-0 left-0 w-1 bg-rose-500"
+                : "absolute top-0 bottom-0 left-0 w-1 bg-amber-500"
+            }
+          />
+          <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:gap-6">
+            <div
+              className={
+                givenLoans.overdueCount > 0
+                  ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 shadow-sm"
+                  : "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 shadow-sm"
+              }
+            >
+              <BellRing className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-foreground">
+                {givenLoans.overdueCount > 0
+                  ? `${givenLoans.overdueCount} loan${givenLoans.overdueCount === 1 ? "" : "s"} you gave ${givenLoans.overdueCount === 1 ? "is" : "are"} overdue (${formatPKR(givenLoans.overdueAmount)})`
+                  : `${givenLoans.dueSoonCount} loan repayment${givenLoans.dueSoonCount === 1 ? " is" : "s are"} due within 7 days`}
+              </p>
+              <p className="text-xs font-medium text-muted-foreground mt-0.5 leading-relaxed">
+                {givenLoans.worstOverdue.length > 0
+                  ? givenLoans.worstOverdue
+                      .map((l) => `${l.borrowerName} (${l.overdueMonths}mo, ${formatPKR(l.overdueAmount)})`)
+                      .join(" · ")
+                  : "Open Loans Given to see who is due and when."}
+                {givenLoans.overdueCount > 0 && givenLoans.dueSoonCount > 0 &&
+                  ` · plus ${givenLoans.dueSoonCount} more due within 7 days`}
+              </p>
+            </div>
+            <Button size="sm" variant="outline" className="rounded-xl font-bold self-start sm:self-center" asChild>
+              <Link href={givenLoans.overdueCount > 0 ? "/given-loans?status=OVERDUE" : "/given-loans?status=ACTIVE"}>
+                Check status
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Warning Notification Banner */}
       {!activePhase && (
         <Card className="border-amber-500/25 bg-gradient-to-r from-amber-500/10 to-transparent shadow-sm rounded-2xl overflow-hidden relative">
@@ -136,6 +194,9 @@ export default async function DashboardPage() {
               <StatCard label="Completed Contracts" value={String(stats.totalCompletedContracts)} icon={CheckCircle2} variant="emerald" href="/contracts?status=COMPLETED" />
               <StatCard label="Cash in Hand" value={formatPKR(stats.cashInHand)} icon={Wallet} hint="Available for next purchases" variant="emerald" href="/cash-ledger" />
               <StatCard label="Outstanding Loans" value={formatPKR(stats.totalOutstandingLoans)} icon={HandCoins} hint="Borrowed, not yet repaid" variant="amber" href="/loans" />
+              {givenLoans && (
+                <StatCard label="Loans Given (Owed to Us)" value={formatPKR(givenLoans.totalOutstanding)} icon={Handshake} hint={`${givenLoans.activeCount} open${givenLoans.overdueCount > 0 ? `, ${givenLoans.overdueCount} overdue` : ""}`} variant="violet" href="/given-loans" />
+              )}
               <StatCard label="Total Expenses" value={formatPKR(stats.totalExpenses)} icon={Receipt} hint="Contract purchases + business expenses" variant="rose" href="/expenses" />
             </div>
           </div>
