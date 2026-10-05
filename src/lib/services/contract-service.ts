@@ -424,14 +424,18 @@ export async function createContractRecord(
     );
   }
 
-  // Freeze the investor pool that is funding this contract right now.
-  // This is a permanent snapshot — profit distribution for this contract
-  // will always read from it, never from the live investor list, so an
-  // investor who joins later (or adds more capital later) can never end
-  // up sharing in profit from a contract that started before they did.
+  // Freeze the investor pool that was funding this contract on its start
+  // date. This is a permanent snapshot — profit distribution for this
+  // contract will always read from it, never from the live investor list,
+  // so an investor who joins later (or adds more capital later) can never
+  // end up sharing in profit from a contract that started before they did,
+  // even when the contract is entered after the fact with a past start date.
   const { error: snapshotError } = await supabase.rpc(
     "snapshot_contract_investors",
-    { p_contract_id: contractRow.id }
+    // As of the contract's START date, not "now": a back-dated contract
+    // must only be funded by investors who were already in the phase on
+    // that date, never by someone who joined afterwards.
+    { p_contract_id: contractRow.id, p_as_of: values.startDate }
   );
 
   if (snapshotError) {

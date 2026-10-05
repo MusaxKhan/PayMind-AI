@@ -558,7 +558,7 @@ export interface Database {
         Returns: ProfitDistributionRow[];
       };
       snapshot_contract_investors: {
-        Args: { p_contract_id: number };
+        Args: { p_contract_id: number; p_as_of?: string | null };
         Returns: void;
       };
       create_business_expense_with_balance_check: {

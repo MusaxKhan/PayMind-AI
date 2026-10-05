@@ -189,6 +189,8 @@ export async function upsertInvestorPhaseInvestment(values: {
   phaseId: number;
   investorId: number;
   investmentAmount: number;
+  /** YYYY-MM-DD the money actually came in; defaults to today. */
+  investmentDate?: string;
 }): Promise<void> {
   const supabase = await createClient();
 
@@ -231,6 +233,7 @@ export async function upsertInvestorPhaseInvestment(values: {
         amount: delta,
         investorId: values.investorId,
         investmentId: existing.id,
+        entryDate: values.investmentDate,
         description:
           delta > 0
             ? "Increase to existing investment"
@@ -261,6 +264,7 @@ export async function upsertInvestorPhaseInvestment(values: {
     amount: values.investmentAmount,
     investorId: values.investorId,
     investmentId: newInvestment.id,
+    entryDate: values.investmentDate,
     description: "New investor investment",
   });
 }

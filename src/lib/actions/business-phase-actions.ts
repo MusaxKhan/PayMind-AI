@@ -73,6 +73,7 @@ export async function addInvestmentAction(
     phaseId,
     investorId: formData.get("investorId"),
     investmentAmount: formData.get("investmentAmount"),
+    investmentDate: formData.get("investmentDate") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -83,7 +84,10 @@ export async function addInvestmentAction(
   }
 
   try {
-    await upsertInvestorPhaseInvestment(parsed.data);
+    await upsertInvestorPhaseInvestment({
+      ...parsed.data,
+      investmentDate: parsed.data.investmentDate || undefined,
+    });
   } catch (err) {
     if (err instanceof BusinessPhaseServiceError) {
       return { success: false, error: err.message };

@@ -25,6 +25,13 @@ export const investorPhaseInvestmentSchema = z.object({
   investmentAmount: z.coerce
     .number()
     .positive("Investment amount must be greater than 0"),
+  // Date the money actually came in. Drives which contracts this investor
+  // shares in (only contracts starting on/after it). Defaults to today.
+  investmentDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid investment date")
+    .optional()
+    .or(z.literal("")),
 });
 
 export type InvestorPhaseInvestmentFormValues = z.infer<

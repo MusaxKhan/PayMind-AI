@@ -144,6 +144,21 @@ export function AddInvestmentDialog({
             />
           </div>
 
+          <div className="space-y-1.5">
+            <Label htmlFor="investmentDate">Investment Date</Label>
+            <Input
+              id="investmentDate"
+              name="investmentDate"
+              type="date"
+              defaultValue={new Date().toISOString().split("T")[0]}
+              max={new Date().toISOString().split("T")[0]}
+            />
+            <p className="text-xs text-muted-foreground">
+              When the money actually came in. This investor only shares in
+              profit from contracts that start on or after this date.
+            </p>
+          </div>
+
           {state?.error && (
             <p className="rounded-md bg-status-overdue-bg px-3 py-2 text-sm text-status-overdue">
               {state.error}
